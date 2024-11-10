@@ -4,7 +4,17 @@ import sys1
 import train
 import time
 
-system = 'uni'
+system = 'ip'
+
+if torch.cuda.is_available():
+    print("CUDA is available")
+else:
+    print("CUDA is not available")
+
+    import torch
+
+# Check if a GPU is available
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def barr_nn(system):
     # generate training data

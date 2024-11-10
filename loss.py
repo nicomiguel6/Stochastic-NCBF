@@ -152,6 +152,7 @@ def calc_lmi_loss(barr_nn,lambda_h, lambda_dh, lambda_d2h, lip_h, lip_dh, lip_d2
     lip_d2h = torch.tensor(lip_d2h)
     device = barr_nn.device.type
     # device = 'cuda'
+    print(barr_nn.device)
     if barr_nn.device != 'cpu':
         lambda_h = lambda_h.cuda(device)
         lip_h = lip_h.cuda(device)
