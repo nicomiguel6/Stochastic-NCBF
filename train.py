@@ -85,9 +85,14 @@ def initialize_nn(num_batches, eta, lambda_h, lambda_dh):
 
     return barr_nn, optimizer,scheduler
 
-def train(batches_safe, batches_unsafe, batches_domain, NUM_BATCHES, system):
+def train(batches_safe, batches_unsafe, batches_domain, NUM_BATCHES, system, human = False):
     logger = DataLog()
-    log_dir = "experiments/" + system+"_w_eta"
+    
+    if not human:
+        log_dir = "experiments/" + system+"_w_eta_WS"
+    else:
+        log_dir = "experiments/" + system+"_w_eta_human_WS"
+    
     working_dir = os.getcwd()
 
     if os.path.isdir(log_dir) == False:
@@ -146,7 +151,7 @@ def train(batches_safe, batches_unsafe, batches_domain, NUM_BATCHES, system):
 
                 sigma = 0.10*torch.eye(data.DIM_S)
                 
-                _, _, lie_batch_loss, lie_eta_batch_loss, curr_batch_loss = loss.calc_loss(barr_nn, batch_safe, batch_unsafe, batch_domain, epoch, batch_index,eta, hyp.lip_h, sigma)
+                _, _, lie_batch_loss, lie_eta_batch_loss, curr_batch_loss = loss.calc_loss(barr_nn, batch_safe, batch_unsafe, batch_domain, epoch, batch_index,eta, hyp.lip_h, sigma, human = human)
                 # batch_loss is a tensor, batch_gradient is a scalar
                 curr_batch_loss.backward() # compute gradient using backward()
                 # update weight and bias

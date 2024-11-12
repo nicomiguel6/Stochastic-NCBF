@@ -51,7 +51,7 @@ lip_d2h= 2
 ############################################
 # number of training epochs
 ############################################
-EPOCHS = 500
+EPOCHS = 100
 
 ############################################
 ############################################
@@ -61,7 +61,12 @@ GAMMA = 0 # when beta is nonzero, larger gamma gives faster drop of rate
 
 #weights for loss function
 
-DECAY_LIE = 1 # decay of lie weight 0.1 works, 1 does not work
+DECAY_LIE = 0 # decay of lie weight 0.1 works, 1 does not work
 DECAY_SAFE = 1
 DECAY_UNSAFE = 1
+DECAY_HUMAN = 1
+
+############################################
+REF_POINTS = [[0.0, 0.0]]
+RELATIVE_THRESHOLD = 1.2
 

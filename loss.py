@@ -103,13 +103,60 @@ def lipschitz_d_diff(lambdas, lip, model, sigma):
     return dpart-spart-torch.transpose(spart,0,1)
     
     
-def calc_loss(barr_nn, x_safe, x_unsafe, x_domain, epoch, batch_index, eta,lip_h, sigma):
+def calc_loss(barr_nn, x_safe, x_unsafe, x_domain, epoch, batch_index, eta,lip_h, sigma, human = False):
     # compute loss of init    
     h_safe, d_h_safe, d2_h_safe = barr_nn(x_safe, hessian=True)
 
     device = h_safe.device.type
     # device = 'cuda'
     if h_safe.device != 'cpu':
+        eta = eta.cuda(device)
+        
+    loss_safe = torch.relu(-h_safe + hyp.TOL_SAFE -eta) #tolerance
+
+    # compute loss of unsafe
+    h_unsafe, d_h_unsafe, d2_h_unsafe = barr_nn(x_unsafe, hessian=True)
+    loss_unsafe = torch.relu(h_unsafe + hyp.lamda - hyp.TOL_UNSAFE -eta) #tolerance
+    
+    # compute loss of domain
+    h_domain, d_h_domain, d2_h_domain = barr_nn(x_domain, hessian=True)
+
+    h_domain = h_domain[:, 0, :]
+    d_h_domain = d_h_domain[:, 0, :]
+    d2_h_domain = d2_h_domain[:, :, 0, :]
+
+    f_x = prob.func_f(x_domain)
+    g_x = prob.func_g(x_domain)
+    
+    gamma = 1
+
+    # print(d_h_domain)
+
+    u, l = safe.calc_safe_u(x_domain, h_domain, d_h_domain, d2_h_domain,f_x, g_x,sigma, gamma, eta)
+        
+    # vector_domain = prob.func_f(x_domain) # compute vector field at domain
+    # print('Shape of del h & dynamics', h_domain.shape, d_h_domain.shape, d2_h_domain.shape)
+    
+    loss_lie=torch.relu(-l.to(device) + hyp.TOL_LIE -eta)
+    loss_lie_eta=torch.relu(-l.to(device))
+
+    if human:    
+        total_loss =  hyp.DECAY_SAFE * torch.sum(loss_safe) +  hyp.DECAY_UNSAFE * torch.sum(loss_unsafe) \
+                        + hyp.DECAY_LIE * torch.sum(loss_lie) + hyp.DECAY_HUMAN * torch.sum(loss_human)#+ loss_eta
+    else:
+        total_loss =  hyp.DECAY_SAFE * torch.sum(loss_safe) +  hyp.DECAY_UNSAFE * torch.sum(loss_unsafe) \
+                        + hyp.DECAY_LIE * torch.sum(loss_lie)
+                    
+    # return total_loss is a tensor, max_gradient is a scalar
+    return torch.sum(loss_safe), torch.sum(loss_unsafe), torch.sum(loss_lie), torch.sum(loss_lie_eta), total_loss
+
+def calc_deterministic_loss(barr_nn, x_safe, x_unsafe, x_domain, epoch, batch_index, eta,lip_h, sigma):
+    # compute loss of init    
+    h_safe, d_h_safe, d2_h_safe = barr_nn(x_safe, hessian=True)
+
+    device = h_safe.device.type
+    # device = 'cuda'
+    if h_safe.device.type != 'cpu':
         eta = eta.cuda(device)
         
     loss_safe = torch.relu(-h_safe + hyp.TOL_SAFE -eta) #tolerance
@@ -169,4 +216,17 @@ def calc_eta_loss(eta, lip_h, lip_dh, lip_d2h):
     
     loss_eta=torch.relu(torch.tensor((lip_h+lip_dh*prob.L_x + lip_d2h)*data.eps) + eta)
     return loss_eta
+
+def calc_human_loss(barr_nn, relative_threshold):
+    x_human = torch.tensor(hyp.REF_POINTS, requires_grad=True).to(barr_nn.device.type)
+
+    h_est, _ = barr_nn(x_human, hessian=False)
+    
+    mean_h = torch.mean(h_est)
+
+    target_value = mean_h * relative_threshold
+
+    loss_human = torch.relu(target_value - mean_h)
+
+    return loss_human
 
