@@ -141,6 +141,7 @@ def calc_loss(barr_nn, x_safe, x_unsafe, x_domain, epoch, batch_index, eta,lip_h
     loss_lie_eta=torch.relu(-l.to(device))
 
     if human:    
+        loss_human = calc_human_loss(barr_nn, hyp.RELATIVE_THRESHOLD)
         total_loss =  hyp.DECAY_SAFE * torch.sum(loss_safe) +  hyp.DECAY_UNSAFE * torch.sum(loss_unsafe) \
                         + hyp.DECAY_LIE * torch.sum(loss_lie) + hyp.DECAY_HUMAN * torch.sum(loss_human)#+ loss_eta
     else:
