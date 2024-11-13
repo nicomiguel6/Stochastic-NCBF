@@ -16,6 +16,14 @@ from utils.make_train_plots import make_train_plots
 import sys1
 import main
 
+from torch.utils.data import DataLoader, TensorDataset
+
+def create_dataloader(batches, batch_size, num_workers):
+    dataset = TensorDataset(batches)  # Convert to TensorDataset if batches are tensors
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    return dataloader
+
+
 data, prob = sys1.system_data(main.system)
 
 
@@ -89,9 +97,9 @@ def train(batches_safe, batches_unsafe, batches_domain, NUM_BATCHES, system, hum
     logger = DataLog()
     
     if not human:
-        log_dir = "experiments/" + system+"_w_eta_WS"
+        log_dir = "experiments/" + system+"_w_eta_WS_FD"
     else:
-        log_dir = "experiments/" + system+"_w_eta_human_WS"
+        log_dir = "experiments/" + system+"_w_eta_human_WS_FD"
     
     working_dir = os.getcwd()
 
