@@ -94,6 +94,13 @@ def initialize_nn(num_batches, eta, lambda_h, lambda_dh):
     return barr_nn, optimizer,scheduler
 
 def train(batches_safe, batches_unsafe, batches_domain, NUM_BATCHES, system, human = False):
+    
+    # Initialize data loaders with num_workers
+    batch_size = 1  # Set according to your memory capacity
+    num_workers = 4
+    dataloader_safe = create_dataloader(batches_safe, batch_size, num_workers)
+    dataloader_unsafe = create_dataloader(batches_unsafe, batch_size, num_workers)
+    dataloader_domain = create_dataloader(batches_domain, batch_size, num_workers)
     logger = DataLog()
     
     if not human:
@@ -147,19 +154,20 @@ def train(batches_safe, batches_unsafe, batches_domain, NUM_BATCHES, system, hum
             print(NUM_BATCHES[3])
 
             # train mini-batches
-            for batch_index in range(NUM_BATCHES[3]):
-                # batch data selection
-                batch_safe = batches_safe[safe_list[batch_index]]
-                batch_unsafe = batches_unsafe[unsafe_list[batch_index]]
-                batch_domain = batches_domain[domain_list[batch_index]]
+            #for batch_index in range(NUM_BATCHES[3]):
+            for batch_index, (batch_safe, batch_unsafe, batch_domain) in enumerate(zip(dataloader_safe, dataloader_unsafe, dataloader_domain)):
+                # # batch data selection
+                # batch_safe = batches_safe[safe_list[batch_index]]
+                # batch_unsafe = batches_unsafe[unsafe_list[batch_index]]
+                # batch_domain = batches_domain[domain_list[batch_index]]
 
                 ############################## mini-batch training ################################################
                 optimizer_barr.zero_grad() # clear gradient of parameters
                 optimizer_eta.zero_grad()
 
-                sigma = 0.10*torch.eye(data.DIM_S)
+                sigma = 0.00*torch.eye(data.DIM_S)
                 
-                _, _, lie_batch_loss, lie_eta_batch_loss, curr_batch_loss = loss.calc_loss(barr_nn, batch_safe, batch_unsafe, batch_domain, epoch, batch_index,eta, hyp.lip_h, sigma, human = human)
+                _, _, lie_batch_loss, lie_eta_batch_loss, curr_batch_loss = loss.calc_loss(barr_nn, batch_safe[0], batch_unsafe[0], batch_domain[0], epoch, batch_index,eta, hyp.lip_h, sigma, human = human)
                 # batch_loss is a tensor, batch_gradient is a scalar
                 curr_batch_loss.backward() # compute gradient using backward()
                 # update weight and bias
