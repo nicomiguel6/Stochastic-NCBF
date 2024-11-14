@@ -19,8 +19,9 @@ import main
 from torch.utils.data import DataLoader, TensorDataset
 
 def create_dataloader(batches, batch_size, num_workers):
-    dataset = TensorDataset(batches)  # Convert to TensorDataset if batches are tensors
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    concatenated_batches = torch.cat(batches, dim=0)
+    dataset = TensorDataset(concatenated_batches)  # Convert to TensorDataset if batches are tensors
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
     return dataloader
 
 
@@ -52,7 +53,7 @@ def initialize_parameters(n_h_b, d_h_b):
     return lambda_h, lambda_dh, lambda_d2h, eta
 
     
-def initialize_nn(num_batches, eta, lambda_h, lambda_dh):    
+def initialize_nn(num_batches, eta, lambda_h, lambda_dh, human = False):    
     print("Initialize nn parameters!")
     cuda_flag = True
     filename = f"barr_nn"
@@ -67,10 +68,14 @@ def initialize_nn(num_batches, eta, lambda_h, lambda_dh):
 
     # Load existing model parameters:
     if LOAD_MODEL:
+        if human:
+            barr_nn = torch.load('experiments/ip_w_eta_human_WS/iterations/barr_nn_99')
+        else:
+            barr_nn = torch.load('experiments/ip_w_eta_WS/iterations/barr_nn_99')
         # load_file = f"./models/{filename}.torch"
         # state = torch.load(load_file, map_location='cpu')
 
-        barr_nn = torch.load('experiments/di_l12_0/iterations/barr_nn_1') #DifferentialNetwork(n_dof, **state['hyper'])
+        #barr_nn = torch.load('experiments/di_l12_0/iterations/barr_nn_1') #DifferentialNetwork(n_dof, **state['hyper'])
         # barr_nn.load_state_dict(state['state_dict'])
 
     else:
@@ -94,19 +99,20 @@ def initialize_nn(num_batches, eta, lambda_h, lambda_dh):
     return barr_nn, optimizer,scheduler
 
 def train(batches_safe, batches_unsafe, batches_domain, NUM_BATCHES, system, human = False):
-    
     # Initialize data loaders with num_workers
-    batch_size = 1  # Set according to your memory capacity
-    num_workers = 4
-    dataloader_safe = create_dataloader(batches_safe, batch_size, num_workers)
-    dataloader_unsafe = create_dataloader(batches_unsafe, batch_size, num_workers)
-    dataloader_domain = create_dataloader(batches_domain, batch_size, num_workers)
+    # batch_size = 1600  # Set according to your memory capacity
+    # num_workers = 16
+    # dataloader_safe = create_dataloader(batches_safe, batch_size, num_workers)
+    # dataloader_unsafe = create_dataloader(batches_unsafe, batch_size, num_workers)
+    # dataloader_domain = create_dataloader(batches_domain, batch_size, num_workers)
+    
     logger = DataLog()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     if not human:
-        log_dir = "experiments/" + system+"_w_eta_WS_FD"
+        log_dir = "experiments/" + system+"_w_eta_WS_rich_data"
     else:
-        log_dir = "experiments/" + system+"_w_eta_human_WS_FD"
+        log_dir = "experiments/" + system+"_w_eta_human_WS_rich_data"
     
     working_dir = os.getcwd()
 
@@ -129,7 +135,7 @@ def train(batches_safe, batches_unsafe, batches_domain, NUM_BATCHES, system, hum
         
         # initialize nn models and optimizers and schedulers
         lambda_h, lambda_dh, lambda_d2h, eta = initialize_parameters(hyp.N_H_B, hyp.D_H_B)
-        barr_nn, optimizer_barr, scheduler_barr = initialize_nn(NUM_BATCHES[3], eta, lambda_h, lambda_dh)
+        barr_nn, optimizer_barr, scheduler_barr = initialize_nn(NUM_BATCHES[3], eta, lambda_h, lambda_dh, human = human)
         optimizer_eta= torch.optim.SGD([{'params':[eta]}], lr=0.001, momentum=0)
 
 
@@ -154,20 +160,22 @@ def train(batches_safe, batches_unsafe, batches_domain, NUM_BATCHES, system, hum
             print(NUM_BATCHES[3])
 
             # train mini-batches
-            #for batch_index in range(NUM_BATCHES[3]):
-            for batch_index, (batch_safe, batch_unsafe, batch_domain) in enumerate(zip(dataloader_safe, dataloader_unsafe, dataloader_domain)):
-                # # batch data selection
-                # batch_safe = batches_safe[safe_list[batch_index]]
-                # batch_unsafe = batches_unsafe[unsafe_list[batch_index]]
-                # batch_domain = batches_domain[domain_list[batch_index]]
-
+            for batch_index in range(NUM_BATCHES[3]):
+            # for batch_index, (batch_safe, batch_unsafe, batch_domain) in enumerate(zip(dataloader_safe, dataloader_unsafe, dataloader_domain)):
+                # batch data selection
+                batch_safe = batches_safe[safe_list[batch_index]].to(device)
+                batch_unsafe = batches_unsafe[unsafe_list[batch_index]].to(device)
+                batch_domain = batches_domain[domain_list[batch_index]].to(device)
+                # batch_safe = batch_safe[0].to(device)
+                # batch_unsafe = batch_unsafe[0].to(device)
+                # batch_domain = batch_domain[0].to(device)
                 ############################## mini-batch training ################################################
                 optimizer_barr.zero_grad() # clear gradient of parameters
                 optimizer_eta.zero_grad()
 
                 sigma = 0.00*torch.eye(data.DIM_S)
                 
-                _, _, lie_batch_loss, lie_eta_batch_loss, curr_batch_loss = loss.calc_loss(barr_nn, batch_safe[0], batch_unsafe[0], batch_domain[0], epoch, batch_index,eta, hyp.lip_h, sigma, human = human)
+                _, _, lie_batch_loss, lie_eta_batch_loss, curr_batch_loss = loss.calc_loss(barr_nn, batch_safe, batch_unsafe, batch_domain, epoch, batch_index,eta, hyp.lip_h, sigma, human = human)
                 # batch_loss is a tensor, batch_gradient is a scalar
                 curr_batch_loss.backward() # compute gradient using backward()
                 # update weight and bias
